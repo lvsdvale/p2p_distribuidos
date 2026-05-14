@@ -1,34 +1,39 @@
 import Pyro5.api
 import sys
+import time
+
+def get_leader_proxy():
+    while True:
+        try:
+            ns = Pyro5.api.locate_ns()
+            leader_uri = ns.lookup("leader")
+            proxy = Pyro5.api.Proxy(leader_uri)
+            proxy._pyroBind()
+            return proxy
+        except Exception:
+            print("Aguardando eleição de um novo líder...")
+            time.sleep(2)
 
 def main():
-    print("Cliente conectando ao servidor...")
+    print("--- Cliente Raft Ativo ---")
+    leader = get_leader_proxy()
+    print(f"Conectado ao Líder.")
 
-    try:
-        ns = Pyro5.api.locate_ns()
-        leader_uri = ns.lookup("leader")
-        print(f"Líder encontrado em {leader_uri}\n")
+    while True:
+        command = input("\nDigite o comando (ou 'sair'): ")
+        if command.lower() == "sair": break
 
-    except Pyro5.errors.NamingError:
-        print("Líder não encontrado. Aguarde eleição")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Erro ao conectar ao servidor de nomes: {e}")
-        sys.exit(1)
-
-    with Pyro5.api.Proxy(leader_uri) as leader:
-        while True:
-            command = input("\n Digite um comando para o líder ('sair' para encerrar)")
-            if command.lower() == "sair":
-                print("Encerrando cliente...")
-                break
-
+        try:
+            response = leader.receive_client_command(command)
+            print(f"Resposta: {response}")
+        except Exception:
+            print("Líder caiu! Buscando novo líder...")
+            leader = get_leader_proxy()
             try:
                 response = leader.receive_client_command(command)
-                print(f"Resposta do líder: {response}")
+                print(f"Resposta (novo líder): {response}")
             except Exception as e:
-                print(f"Conexão perdida com o líder: {e}, reinicie o cliente")
-                break
+                print(f"Erro ao processar: {e}")
 
 if __name__ == "__main__":
     main()

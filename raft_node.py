@@ -27,9 +27,9 @@ class RaftNode:
         del self.peers[node_id]
 
         self.last_heartbeat = time.time()
-        self.heartbeat_timeout = random.uniform(2.0, 5.0)
+        self.heartbeat_timeout = random.uniform(1.5, 3.0)
 
-        self.election_timeout = 1.0 ### Técnica MicroRaft https://microraft.io/blog/2021-09-08-today-a-raft-follower-tomorrow-a-raft-leader/
+        self.election_timeout = 1.0
         
         self.lock = threading.Lock()
         threading.Thread(target=self.election_timer, daemon=True).start()
@@ -123,26 +123,26 @@ class RaftNode:
 
             return True
     
-    def broadcast_append_entries(self, new_entry = None):
+    def broadcast_append_entries(self, new_entry=None):
         entry = [new_entry] if new_entry else []
         success_count = 1
-
-        for peer_uri in self.peers.values():
+        
+        for peer_id, peer_uri in self.peers.items():
             try:
                 with Pyro5.api.Proxy(peer_uri) as peer:
                     success = peer.append_entries(self.current_term, self.node_id, entry, self.commit_index)
                     if success and new_entry:
                         success_count += 1
             except Exception:
-                pass
+                continue
 
         if new_entry and success_count >= 3:
             with self.lock:
                 self.commit_index += 1
-                print(f"Commit: nova entrada ({new_entry}) commitada com sucesso, resposta de {success_count} nós")
+                print(f"MAIORIA ALCANÇADA ({success_count}/4). Entrada commitada no índice {self.commit_index}")
             return True
         return False
-
+    
     def receive_client_command(self, command):
         if self.state != "leader":
             return "Erro: não sou o líder"

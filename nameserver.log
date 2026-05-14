@@ -1,0 +1,3 @@
+Not starting broadcast server for IPv6.
+NS running on localhost:9090 (::1)
+URI = PYRO:Pyro.NameServer@localhost:9090
